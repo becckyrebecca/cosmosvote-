@@ -317,6 +317,34 @@ updated stuff
 - Test both success and failure paths for every public function
 - **Coverage Target:** All contributions must maintain at least **80% code coverage**. The CI will fail if coverage drops below this threshold.
 
+## Stale Issues and Pull Requests
+
+To keep the backlog manageable, an automated stale bot runs on a schedule and marks inactive issues and pull requests. The configuration lives in [`.github/workflows/stale.yml`](./.github/workflows/stale.yml).
+
+### Stale policy
+
+| Item | Marked stale after | Closed after being stale |
+|------|--------------------|--------------------------|
+| Issues | 60 days of inactivity | 14 days |
+| Pull requests | 30 days of inactivity | 14 days |
+
+### Exempt labels
+
+Items labelled `wontfix` or `help wanted` are **never** marked stale or closed automatically. Use these labels to keep an item open indefinitely:
+
+- `wontfix` — the item is intentionally not going to be addressed.
+- `help wanted` — the item is waiting on a community contributor.
+
+### Keeping an item active
+
+Any of the following resets the inactivity timer:
+
+- Posting a comment on the issue or PR.
+- Pushing a new commit to the PR branch.
+- Removing the stale label (the bot will re-evaluate on its next run).
+
+If an item is closed by the stale bot but is still relevant, simply reopen it and add a comment explaining the current status.
+
 ## Security
 
 If you discover a security vulnerability, **do not open a public issue**. See [SECURITY.md](./SECURITY.md) for responsible disclosure.
