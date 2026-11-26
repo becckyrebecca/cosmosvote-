@@ -17,6 +17,52 @@ This guide covers running the full CosmosVote stack locally using Docker Compose
 | `faucet` | Faucet service — signs and submits testnet funding transactions | `3000:3000` |
 | `artifacts` | Minimal runtime image shipping WASM artifacts only (profile: `artifacts`) | — |
 
+## Networks
+
+Services no longer share a single default network. Three custom networks isolate
+traffic so that each service can only talk to the peers it is supposed to:
+
+| Network | Purpose | Attached services |
+|---------|---------|-------------------|
+| `frontend-net` | Browser-facing edge network | `frontend`, `rpc-proxy` |
+| `backend-net` | Application/backend network | `faucet`, `rpc-proxy` |
+| `stellar-net` | Internal Stellar node network | `stellar-node`, `rpc-proxy`, `dev` |
+
+`rpc-proxy` is the only service attached to more than one network and acts as
+the sole bridge between the frontend, the faucet backend and the Stellar node.
+
+```
+                 ┌──────────────┐
+                 │   frontend   │
+                 └──────┬───────┘
+                        │ frontend-net
+                 ┌──────┴───────┐
+                 │  rpc-proxy   │
+                 └──┬────────┬──┘
+          backend-net│        │stellar-net
+              ┌──────┴──┐  ┌──┴───────────┐
+              │ faucet  │  │ stellar-node │
+              └─────────┘  └──────────────┘
+```
+
+### Access rules
+
+- **Faucet → Stellar node:** the `faucet` service is *not* attached to
+  `stellar-net`, so it cannot reach `stellar-node:8000` directly. All faucet
+  traffic to the node must go through `rpc-proxy` (`http://rpc-proxy:8000`),
+  which keeps rate limiting and request logging in effect.
+- **Frontend → faucet backend:** the `frontend` service is *not* attached to
+  `backend-net`, so it cannot reach the faucet backend directly. Frontend
+  requests are routed through `rpc-proxy`.
+- **Frontend → Stellar node:** the `frontend` service is not attached to
+  `stellar-net`, so `stellar-node` is unreachable from the frontend.
+- **Dev shell:** the `dev` service joins `stellar-net` only, so it can reach
+  the node for deployment scripts but not the faucet or frontend.
+
+> If you add a new service, attach it to the narrowest network that satisfies
+> its needs. Do not attach application services to `stellar-net` unless they
+> must talk to the node directly.
+
 ## Environment Variables
 
 Copy the example file and edit as needed:
@@ -30,7 +76,7 @@ Key variables used by Docker Compose:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `NETWORK` | `local` | Network to connect to (`local` \| `testnet` \| `mainnet`) |
-| `STELLAR_RPC_URL` | `http://stellar-node:8000` | Soroban RPC endpoint (within Compose network) |
+| `STELLAR_RPC_URL` | `http://rpc-proxy:8000` | Soroban RPC endpoint (via `rpc-proxy`; services must not target `stellar-node` directly) |
 | `STELLAR_NETWORK_PASSPHRASE` | `Standalone Network ; February 2021` | Must match the running node |
 | `STELLAR_SECRET_KEY` | — | Admin secret key for deployment scripts |
 | `FAUCET_SECRET_KEY_FILE` | `/run/secrets/faucet_secret_key` | Path to the file containing the faucet signing keypair (mounted via Compose `secrets:`) |
@@ -158,3 +204,21 @@ sudo chown -R $USER:$USER target/
 
 **Cargo cache not persisting between runs**  
 The `cargo-cache` and `target-cache` named volumes persist between `docker compose run` invocations. They are cleared only when you run `docker compose down -v`.
+
+**Service cannot resolve a hostname (e.g. `faucet` cannot reach `stellar-node`)**  
+This is expected: services are isolated on separate networks (see [Networks](#networks)). Use `rpc-proxy` as the entry point instead of connecting to `stellar-node` directly. If a service genuinely needs direct access, attach it to the relevant network in `docker-compose.yml` and update this document.
+
+**`docker compose up` fails with "network ... not found"**  
+Stale networks from an older Compose file may linger. Recreate them:
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+**Frontend requests to the faucet time out**  
+The frontend cannot reach the faucet backend directly. Confirm requests are routed through `rpc-proxy` and that `rpc-proxy` is attached to both `frontend-net` and `backend-net`:
+
+```bash
+docker compose exec rpc-proxy sh -c 'getent hosts faucet'
+```

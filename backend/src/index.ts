@@ -75,7 +75,9 @@ const healthServer = createHealthServer(
 );
 const healthPort = env.HEALTH_PORT;
 healthServer.listen(healthPort, '0.0.0.0', () => {
-  console.info(`[cosmosvote-backend] health endpoints listening on port ${healthPort}`);
+  console.info(
+    `[cosmosvote-backend] health endpoints listening on port ${healthPort} (version ${APP_VERSION})`,
+  );
 });
 
 service.start();
